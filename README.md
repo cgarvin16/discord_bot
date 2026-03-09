@@ -8,7 +8,9 @@ DEV_MODE = True
 GUILD_ID = 1429389182416977972 # Channel ID
 
 ## Commands
+```sh
 /setlogchannel #mod-logs
 /nick @user NewName
 /resetnick @user
 /nickhistory @user
+```
