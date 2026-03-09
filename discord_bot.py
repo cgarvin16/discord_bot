@@ -3,18 +3,31 @@ from discord.ext import commands
 from discord import app_commands
 from datetime import datetime
 import database
+import os
 
-TOKEN = "MTQ4MDQxNjA0MjU1NDYyNjIyMg.GCCNWJ.acv0mnjazk5ygcdAXrc7PqlIL7zIBXFG06gPHE"
+DEV_MODE = False
+GUILD_ID = 1429389182416977972
+
+TOKEN = os.getenv("DISCORD_TOKEN")
 
 intents = discord.Intents.default()
 intents.members = True
+intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 
 @bot.event
 async def on_ready():
-    await bot.tree.sync()
+    if DEV_MODE:
+        guild = discord.Object(id=GUILD_ID)
+        bot.tree.copy_global_to(guild=guild)
+        synced = await bot.tree.sync(guild=guild)
+        print(f"DEV sync: {len(synced)} commands")
+    else:
+        synced = await bot.tree.sync()
+        print(f"GLOBAL sync: {len(synced)} commands")
+
     print(f"Logged in as {bot.user}")
 
 
@@ -38,44 +51,50 @@ async def setlogchannel(interaction: discord.Interaction, channel: discord.TextC
 # ---------------------------
 
 @bot.tree.command(name="nick", description="Change a user's nickname")
+@app_commands.describe(
+    member="The member to rename",
+    nickname="The new nickname"
+)
 async def nick(interaction: discord.Interaction, member: discord.Member, nickname: str):
 
     if not interaction.user.guild_permissions.manage_nicknames:
         await interaction.response.send_message(
-            "You don't have permission.",
+            "❌ You don't have permission to manage nicknames.",
             ephemeral=True
         )
         return
 
-    old_nick = member.nick or member.name
+    # Capture the current display name BEFORE changing it
+    old_name = member.display_name
 
     try:
         await member.edit(nick=nickname)
 
         timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
+        # Store correct history
         database.add_nickname_change(
             interaction.guild.id,
             member.id,
-            old_nick,
+            old_name,
             nickname,
             interaction.user.name,
             timestamp
         )
 
+        # Confirmation message (cleaner)
         await interaction.response.send_message(
-            f"✅ {member.mention}'s nickname changed to **{nickname}**"
+            f"✅ **{old_name}**'s nickname changed to {member.mention}"
         )
 
+        # Log channel
         log_channel_id = database.get_log_channel(interaction.guild.id)
-
         if log_channel_id:
             log_channel = bot.get_channel(log_channel_id)
 
             if log_channel:
                 await log_channel.send(
-                    f"🔧 {interaction.user.mention} changed {member.mention}'s nickname\n"
-                    f"Old: **{old_nick}**\nNew: **{nickname}**"
+                    f"🔧 {interaction.user.mention} changed **{old_name}** → {member.mention}"
                 )
 
     except discord.Forbidden:
@@ -90,9 +109,13 @@ async def nick(interaction: discord.Interaction, member: discord.Member, nicknam
 # ---------------------------
 
 @bot.tree.command(name="resetnick", description="Reset a user's nickname")
+@app_commands.describe(
+    member="The member whose nickname will be reset"
+)
 async def resetnick(interaction: discord.Interaction, member: discord.Member):
 
-    old_nick = member.nick or member.name
+    old_name = member.display_name
+    new_name = member.name  # username when nickname removed
 
     try:
         await member.edit(nick=None)
@@ -102,15 +125,25 @@ async def resetnick(interaction: discord.Interaction, member: discord.Member):
         database.add_nickname_change(
             interaction.guild.id,
             member.id,
-            old_nick,
-            member.name,
+            old_name,
+            new_name,
             interaction.user.name,
             timestamp
         )
 
         await interaction.response.send_message(
-            f"🔄 {member.mention}'s nickname reset."
+            f"🔄 **{old_name}**'s nickname reset to {member.mention}"
         )
+
+        # Log channel
+        log_channel_id = database.get_log_channel(interaction.guild.id)
+        if log_channel_id:
+            log_channel = bot.get_channel(log_channel_id)
+
+            if log_channel:
+                await log_channel.send(
+                    f"🔄 {interaction.user.mention} reset **{old_name}** → {member.mention}"
+                )
 
     except discord.Forbidden:
         await interaction.response.send_message(
@@ -124,6 +157,9 @@ async def resetnick(interaction: discord.Interaction, member: discord.Member):
 # ---------------------------
 
 @bot.tree.command(name="nickhistory", description="View nickname history")
+@app_commands.describe(
+    member="The member to view history for"
+)
 async def nickhistory(interaction: discord.Interaction, member: discord.Member):
 
     history = database.get_history(member.id)
