@@ -6,7 +6,7 @@ Simple nickname bot that allows members to change nicknames on discord.
 - Update these variables in `bot.py` when testing:
 ```py
 DEV_MODE = False
-GUILD_ID = 1429389182416977972 # Channel ID
+DEV_GUILD_ID = 1429389182416977972 # Channel ID
 ```
 
 ## Commands

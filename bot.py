@@ -6,7 +6,7 @@ import database
 import os
 
 DEV_MODE = False
-GUILD_ID = 1429389182416977972
+DEV_GUILD_ID = 1429389182416977972
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 
@@ -20,7 +20,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 @bot.event
 async def on_ready():
     if DEV_MODE:
-        guild = discord.Object(id=GUILD_ID)
+        guild = discord.Object(id=DEV_GUILD_ID)
         bot.tree.copy_global_to(guild=guild)
         synced = await bot.tree.sync(guild=guild)
         print(f"DEV sync: {len(synced)} commands")
@@ -29,7 +29,6 @@ async def on_ready():
         print(f"GLOBAL sync: {len(synced)} commands")
 
     print(f"Logged in as {bot.user}")
-
 
 # ---------------------------
 # Set Log Channel
